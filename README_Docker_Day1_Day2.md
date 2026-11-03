@@ -66,6 +66,14 @@ manually setting up the same environment every time, we can package the
 application with a suitable runtime image and run it as a container.
 
 ## Before Docker vs After Docker
+Before Docker
+An application may work on one computer but fail on another because the
+software versions, libraries, or configuration are different.
+
+With Docker
+Docker packages the application environment into an image. A container
+is created from that image and runs the application in an isolated
+environment.
 
 | Before container-based deployment                       | With Docker                                                         |
 |---------------------------------------------------------|---------------------------------------------------------------------|
