@@ -242,9 +242,12 @@ docker run -d --name mynginx -p 8081:80 nginx
 ``` text
 -p HOST_PORT:CONTAINER_PORT
 ```
+Think of the two port numbers as two doors: 80 is the door on the host
+machine, and 8080 is the door inside the container. When someone
+visits the host on port 80, Docker forwards that traffic to port 8080
+inside the container.
 
-In this example, requests to port `8081` on the Docker host are
-forwarded to port `80` inside the Nginx container.
+
 
 ### List containers
 
