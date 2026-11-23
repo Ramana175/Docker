@@ -1,0 +1,44 @@
+
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven-3.10.1'
+    }
+
+    stages {
+
+        stage('Git Checkout') {
+            steps {
+                echo 'Checking out source code from GitHub'
+            }
+        }
+
+        stage('Maven Build') {
+            steps {
+                echo 'Building Maven application'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                echo 'Starting SonarQube analysis'
+            }
+        }
+
+    }
+
+    post {
+        success {
+            echo 'Pipeline executed successfully!'
+        }
+
+        failure {
+            echo 'Pipeline execution failed!'
+        }
+
+        always {
+            echo 'Pipeline execution completed!'
+        }
+    }
+}
