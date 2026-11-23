@@ -8,14 +8,12 @@ pipeline {
 
     stages {
 
-        // Stage 1: GitHub source code is checked out by Jenkins SCM
         stage('Git Checkout') {
             steps {
                 echo 'Source code checked out from GitHub'
             }
         }
 
-        // Stage 2: Build and test the Maven application
         stage('Maven Build') {
             steps {
                 dir('docker-using-jenkins/tomcat-web-application') {
@@ -24,12 +22,51 @@ pipeline {
             }
         }
 
-        // Stage 3: Analyze code using SonarQube
         stage('SonarQube Analysis') {
             steps {
                 dir('docker-using-jenkins/tomcat-web-application') {
                     withSonarQubeEnv('SonarQube-Server') {
                         sh 'mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.2.0.4988:sonar'
+                    }
+                }
+            }
+        }
+
+        stage('Nexus Deployment') {
+            steps {
+                dir('docker-using-jenkins/tomcat-web-application') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'nexus-credentials',
+                        usernameVariable: 'NEXUS_USERNAME',
+                        passwordVariable: 'NEXUS_PASSWORD'
+                    )]) {
+                        sh '''
+                            set +x
+
+                            export NEXUS_SETTINGS="$WORKSPACE/nexus-settings.xml"
+                            trap 'rm -f "$NEXUS_SETTINGS"' EXIT
+
+                            python3 - <<'PY'
+import os
+from xml.etree.ElementTree import Element, SubElement, ElementTree
+
+settings = Element('settings')
+servers = SubElement(settings, 'servers')
+server = SubElement(servers, 'server')
+
+SubElement(server, 'id').text = 'nexus-releases'
+SubElement(server, 'username').text = os.environ['NEXUS_USERNAME']
+SubElement(server, 'password').text = os.environ['NEXUS_PASSWORD']
+
+ElementTree(settings).write(
+    os.environ['NEXUS_SETTINGS'],
+    encoding='UTF-8',
+    xml_declaration=True
+)
+PY
+
+                            mvn -s "$NEXUS_SETTINGS" deploy
+                        '''
                     }
                 }
             }

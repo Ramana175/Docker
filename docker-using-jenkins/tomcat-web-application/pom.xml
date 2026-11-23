@@ -20,6 +20,15 @@
 </sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
+    <distributionManagement>
+        <repository>
+            <id>nexus-releases</id>
+            <name>Nexus Release Repository</name>
+            <url>http://3.26.68.190:8081/repository/maven-releases/</url>
+        </repository>
+    </distributionManagement>
+
+
     <dependencies>
         <dependency>
             <groupId>jakarta.servlet</groupId>
@@ -32,6 +41,8 @@
     <artifactId>junit-jupiter</artifactId>
     <version>5.12.2</version>
     <scope>test</scope>
+
+
 </dependency>
 
 
