@@ -1,3 +1,4 @@
+
 package com.example;
 
 import java.io.IOException;
@@ -17,8 +18,12 @@ public class HelloServlet extends HttpServlet {
 
         response.setContentType("text/html");
 
-        response.getWriter().println(
-            "<h1>Hello from Docker Using Jenkins!</h1>"
-        );
+        try {
+            response.getWriter().println(
+                "<h1>Hello from Docker Using Jenkins!</h1>"
+            );
+        } catch (IOException e) {
+            throw new ServletException("Unable to write response", e);
+        }
     }
 }
