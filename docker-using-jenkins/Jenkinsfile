@@ -8,24 +8,32 @@ pipeline {
 
     stages {
 
+        // Stage 1: GitHub source code is checked out by Jenkins SCM
         stage('Git Checkout') {
             steps {
-                echo 'Checking out source code from GitHub'
+                echo 'Source code checked out from GitHub'
             }
         }
 
+        // Stage 2: Build and test the Maven application
         stage('Maven Build') {
             steps {
-                echo 'Building Maven application'
+                dir('docker-using-jenkins/tomcat-web-application') {
+                    sh 'mvn clean verify'
+                }
             }
         }
 
+        // Stage 3: Analyze code using SonarQube
         stage('SonarQube Analysis') {
             steps {
-                echo 'Starting SonarQube analysis'
+                dir('docker-using-jenkins/tomcat-web-application') {
+                    withSonarQubeEnv('SonarQube-Server') {
+                        sh 'mvn sonar:sonar'
+                    }
+                }
             }
         }
-
     }
 
     post {
