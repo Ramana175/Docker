@@ -29,7 +29,7 @@ pipeline {
             steps {
                 dir('docker-using-jenkins/tomcat-web-application') {
                     withSonarQubeEnv('SonarQube-Server') {
-                        sh 'mvn sonar:sonar'
+                        sh 'mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.2.0.4988:sonar'
                     }
                 }
             }
