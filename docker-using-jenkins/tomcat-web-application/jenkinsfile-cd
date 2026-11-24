@@ -1,0 +1,145 @@
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        timeout(time: 20, unit: 'MINUTES')
+    }
+
+    environment {
+        NEXUS_BASE_URL = 'http://3.26.68.190:8081'
+        NEXUS_REPOSITORY = 'maven-snapshots'
+        GROUP_PATH = 'com/example'
+        ARTIFACT_ID = 'tomcat-web-application'
+        ARTIFACT_VERSION = '1.0.1-SNAPSHOT'
+
+        TOMCAT_IMAGE = 'tomcat:10.1.61'
+        CONTAINER_NAME = 'tomcat-app'
+        HOST_PORT = '9090'
+        CONTAINER_PORT = '8080'
+    }
+
+    stages {
+
+        stage('Download WAR from Nexus') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'nexus-credentials',
+                    usernameVariable: 'NEXUS_USER',
+                    passwordVariable: 'NEXUS_PASS'
+                )]) {
+                    sh '''
+                        set -eu
+                        set +x
+
+                        mkdir -p deployment
+
+                        METADATA_URL="${NEXUS_BASE_URL}/repository/${NEXUS_REPOSITORY}/${GROUP_PATH}/${ARTIFACT_ID}/${ARTIFACT_VERSION}/maven-metadata.xml"
+
+                        curl --fail --silent --show-error \
+                            --user "${NEXUS_USER}:${NEXUS_PASS}" \
+                            "${METADATA_URL}" \
+                            --output deployment/maven-metadata.xml
+
+                        WAR_VERSION="$(python3 - <<'PY'
+import xml.etree.ElementTree as ET
+
+root = ET.parse('deployment/maven-metadata.xml').getroot()
+for item in root.findall('./versioning/snapshotVersions/snapshotVersion'):
+    if item.findtext('extension') == 'war' and item.find('classifier') is None:
+        value = item.findtext('value')
+        if value:
+            print(value)
+            break
+PY
+)"
+
+                        if [ -z "${WAR_VERSION}" ]; then
+                            echo "WAR snapshot version not found!"
+                            exit 1
+                        fi
+
+                        WAR_URL="${NEXUS_BASE_URL}/repository/${NEXUS_REPOSITORY}/${GROUP_PATH}/${ARTIFACT_ID}/${ARTIFACT_VERSION}/${ARTIFACT_ID}-${WAR_VERSION}.war"
+
+                        curl --fail --silent --show-error \
+                            --user "${NEXUS_USER}:${NEXUS_PASS}" \
+                            "${WAR_URL}" \
+                            --output deployment/application.war
+
+                        test -s deployment/application.war
+                        echo "WAR downloaded successfully."
+                        ls -lh deployment/application.war
+                    '''
+                }
+            }
+        }
+
+        stage('Pull Tomcat Image') {
+            steps {
+                sh 'docker pull "$TOMCAT_IMAGE"'
+            }
+        }
+
+        stage('Deploy WAR to Tomcat') {
+            steps {
+                sh '''
+                    set -eu
+
+                    docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+
+                    docker create \
+                        --name "$CONTAINER_NAME" \
+                        --restart unless-stopped \
+                        -p "${HOST_PORT}:${CONTAINER_PORT}" \
+                        "$TOMCAT_IMAGE"
+
+                    docker cp deployment/application.war \
+                        "${CONTAINER_NAME}:/usr/local/tomcat/webapps/${ARTIFACT_ID}.war"
+
+                    docker start "$CONTAINER_NAME"
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                    set -eu
+                    APP_URL="http://127.0.0.1:${HOST_PORT}/${ARTIFACT_ID}/"
+
+                    for attempt in $(seq 1 30); do
+                        if curl --fail --silent "${APP_URL}" >/dev/null; then
+                            echo "Application is responding successfully."
+                            exit 0
+                        fi
+                        sleep 2
+                    done
+
+                    echo "Application deployment verification failed."
+                    docker logs --tail 100 "$CONTAINER_NAME" || true
+                    exit 1
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'CD deployment completed successfully!'
+            echo 'Open http://<CD-SERVER-PUBLIC-IP>:9090/tomcat-web-application/'
+        }
+
+        failure {
+            echo 'CD deployment failed.'
+            sh 'docker logs --tail 100 tomcat-app || true'
+        }
+
+        always {
+            archiveArtifacts artifacts: 'deployment/application.war',
+                             allowEmptyArchive: true
+            echo 'CD pipeline execution finished.'
+        }
+    }
+}
